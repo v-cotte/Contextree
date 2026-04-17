@@ -5,6 +5,7 @@ import { User } from '@supabase/supabase-js'
 import { useStore } from '@/store'
 import { TreeNode } from '@/types'
 import { Button } from '@/components/ui/button'
+import ApiKeysDialog from '@/components/api-keys-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ user }: SidebarProps) {
+    const [apiKeysOpen, setApiKeysOpen] = useState(false)
   const {
     getTreeNodes,
     createProject,
@@ -88,7 +90,9 @@ export default function Sidebar({ user }: SidebarProps) {
               <p className="text-xs text-muted-foreground">{user.email}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>API keys</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setApiKeysOpen(true)}>
+                API keys
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}
@@ -138,6 +142,7 @@ export default function Sidebar({ user }: SidebarProps) {
           New project
         </button>
       </div>
+      <ApiKeysDialog open={apiKeysOpen} onClose={() => setApiKeysOpen(false)} />
     </aside>
   )
 }

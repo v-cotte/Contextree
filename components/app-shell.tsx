@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useStore } from '@/store'
 import Sidebar from '@/components/sidebar/sidebar'
