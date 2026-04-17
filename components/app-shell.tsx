@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useStore } from '@/store'
 import Sidebar from '@/components/sidebar/sidebar'
@@ -12,11 +12,23 @@ interface AppShellProps {
 }
 
 export default function AppShell({ user }: AppShellProps) {
+  const [mounted, setMounted] = useState(false)
   const {
     selectedConversationId,
     selectedProjectId,
-    isSidebarOpen,
   } = useStore()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="text-sm text-muted-foreground">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
