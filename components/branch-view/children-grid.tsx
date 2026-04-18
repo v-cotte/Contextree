@@ -1,23 +1,23 @@
 'use client'
 
-import { Project, Conversation } from '@/types'
+import { Branch, Chat } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface ChildrenGridProps {
-  childProjects: Project[]
-  conversations: Conversation[]
-  onSelectProject: (id: string) => void
-  onSelectConversation: (id: string) => void
-  onNewConversation: () => void
+  childProjects: Branch[]
+  chats: Chat[]
+  onselectBranch: (id: string) => void
+  onselectChat: (id: string) => void
+  onNewchat: () => void
   onNewSubProject: () => void
 }
 
 export default function ChildrenGrid({
   childProjects,
-  conversations,
-  onSelectProject,
-  onSelectConversation,
-  onNewConversation,
+  chats,
+  onselectBranch,
+  onselectChat,
+  onNewchat,
   onNewSubProject,
 }: ChildrenGridProps) {
   return (
@@ -31,7 +31,7 @@ export default function ChildrenGrid({
             {childProjects.map((project) => (
               <button
                 key={project.id}
-                onClick={() => onSelectProject(project.id)}
+                onClick={() => onselectBranch(project.id)}
                 className="flex flex-col gap-1.5 rounded-lg border border-border bg-background p-3 text-left hover:border-[#7F77DD]"
               >
                 <svg
@@ -54,16 +54,16 @@ export default function ChildrenGrid({
         </div>
       )}
 
-      {conversations.length > 0 && (
+      {chats.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Conversations
+            chats
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {conversations.map((conv) => (
+            {chats.map((conv) => (
               <button
                 key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
+                onClick={() => onselectChat(conv.id)}
                 className="flex flex-col gap-1.5 rounded-lg border border-border bg-background p-3 text-left hover:border-[#7F77DD]"
               >
                 <svg

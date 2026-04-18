@@ -4,8 +4,8 @@ import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'contextree',
-  description: 'Hierarchical AI context manager',
+  title: 'Contextree',
+  description: 'Hierarchical AI context manager. Build a tree of context — every chat inherits everything above it.',
 }
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${GeistSans.variable} ${GeistMono.variable} h-screen overflow-hidden bg-background`}
+        className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
         suppressHydrationWarning
       >
         {children}

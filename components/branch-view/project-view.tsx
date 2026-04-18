@@ -5,57 +5,57 @@ import { useStore } from '@/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import ContextEditor from '@/components/project-view/context-editor'
-import FileList from '@/components/project-view/file-list'
-import ChildrenGrid from '@/components/project-view/children-grid'
+import ContextEditor from '@/components/branch-view/context-editor'
+import FileList from '@/components/branch-view/file-list'
+import ChildrenGrid from '@/components/branch-view/children-grid'
 import { cn } from '@/lib/utils'
 
 interface ProjectViewProps {
-  projectId: string
+  branchId: string
 }
 
-export default function ProjectView({ projectId }: ProjectViewProps) {
+export default function BranchView({ branchId }: ProjectViewProps) {
   const {
-    projects,
-    conversations,
+    branches,
+    chats,
     files,
-    getProjectAncestors,
-    createProject,
-    createConversation,
-    selectProject,
-    selectConversation,
-    updateProject,
+    getBranchAncestors,
+    createBranch,
+    createChat,
+    selectBranch,
+    selectChat,
+    updateBranch,
   } = useStore()
 
-  const project = projects.find((p) => p.id === projectId)
-  const ancestors = getProjectAncestors(projectId)
+  const branch = branches.find((p) => p.id === branchId)
+  const ancestors = getBranchAncestors(branchId)
   const parentAncestors = ancestors.slice(0, -1)
-  const projectConversations = conversations.filter(
-    (c) => c.projectId === projectId
+  const projectChats = chats.filter(
+    (c) => c.branchId === branchId
   )
-  const projectFiles = files[projectId] ?? []
-  const childProjects = projects.filter((p) => p.parentId === projectId)
+  const projectFiles = files[branchId] ?? []
+  const childProjects = branches.filter((p) => p.parentId === branchId)
 
   const [editingName, setEditingName] = useState(false)
-  const [nameValue, setNameValue] = useState(project?.name ?? '')
+  const [nameValue, setNameValue] = useState(branch?.name ?? '')
 
-  if (!project) return null
+  if (!branch) return null
 
   const handleNameSave = () => {
     if (nameValue.trim()) {
-      updateProject(projectId, { name: nameValue.trim() })
+      updateBranch(branchId, { name: nameValue.trim() })
     }
     setEditingName(false)
   }
 
   const handleNewSubProject = () => {
-    const sub = createProject('New project', projectId)
-    selectProject(sub.id)
+    const sub = createBranch('New project', branchId)
+    selectBranch(sub.id)
   }
 
-  const handleNewConversation = () => {
-    const conv = createConversation('New conversation', projectId)
-    selectConversation(conv.id)
+  const handleNewchat = () => {
+    const conv = createChat('New chat', branchId)
+    selectChat(conv.id)
   }
 
   return (
@@ -65,7 +65,7 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
           {parentAncestors.map((ancestor, i) => (
             <span key={ancestor.id} className="flex items-center gap-1.5">
               <button
-                onClick={() => selectProject(ancestor.id)}
+                onClick={() => selectBranch(ancestor.id)}
                 className="hover:text-foreground"
               >
                 {ancestor.name}
@@ -88,12 +88,12 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
           ) : (
             <button
               onClick={() => {
-                setNameValue(project.name)
+                setNameValue(branch.name)
                 setEditingName(true)
               }}
               className="text-sm font-medium text-foreground hover:underline"
             >
-              {project.name}
+              {branch.name}
             </button>
           )}
         </div>
@@ -115,10 +115,10 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
           </Button>
           <Button
             size="sm"
-            onClick={handleNewConversation}
+            onClick={handleNewchat}
             className="h-7 bg-[#7F77DD] text-xs text-white hover:bg-[#6B63C9]"
           >
-            + New conversation
+            + New chat
           </Button>
         </div>
       </div>
@@ -149,7 +149,7 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
                     <span className="text-xs text-muted-foreground">
                       From{' '}
                       <button
-                        onClick={() => selectProject(ancestor.id)}
+                        onClick={() => selectBranch(ancestor.id)}
                         className="font-medium text-foreground hover:underline"
                       >
                         {ancestor.name}
@@ -171,10 +171,10 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
               Context
             </p>
             <ContextEditor
-              projectId={projectId}
-              value={project.contextMarkdown}
+              branchId={branchId}
+              value={branch.contextMarkdown}
               onChange={(val) =>
-                updateProject(projectId, { contextMarkdown: val })
+                updateBranch(branchId, { contextMarkdown: val })
               }
             />
           </div>
@@ -183,18 +183,18 @@ export default function ProjectView({ projectId }: ProjectViewProps) {
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Files
             </p>
-            <FileList projectId={projectId} files={projectFiles} />
+            <FileList branchId={branchId} files={projectFiles} />
           </div>
 
-          {(childProjects.length > 0 || projectConversations.length > 0) && (
+          {(childProjects.length > 0 || projectChats.length > 0) && (
             <>
               <Separator />
               <ChildrenGrid
                 childProjects={childProjects}
-                conversations={projectConversations}
-                onSelectProject={selectProject}
-                onSelectConversation={selectConversation}
-                onNewConversation={handleNewConversation}
+                chats={projectChats}
+                onselectBranch={selectBranch}
+                onselectChat={selectChat}
+                onNewchat={handleNewchat}
                 onNewSubProject={handleNewSubProject}
               />
             </>

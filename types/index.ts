@@ -1,6 +1,6 @@
-export type NodeType = 'project' | 'conversation'
+export type NodeType = 'branch' | 'chat'
 
-export interface Project {
+export interface Branch {
   id: string
   name: string
   parentId: string | null
@@ -12,19 +12,20 @@ export interface Project {
 
 export interface FileAttachment {
   id: string
-  projectId: string
+  branchId: string
   name: string
   type: string
   extractedText: string
   createdAt: string
 }
 
-export interface Conversation {
+export interface Chat {
   id: string
   name: string
-  projectId: string
+  branchId: string
   model: string
   responseMode: ResponseMode
+  starred: boolean
   createdAt: string
   updatedAt: string
   userId: string
@@ -32,7 +33,7 @@ export interface Conversation {
 
 export interface Message {
   id: string
-  conversationId: string
+  chatId: string
   role: 'user' | 'assistant'
   content: string
   model?: string
@@ -54,8 +55,8 @@ export interface ApiKey {
 }
 
 export interface ContextLayer {
-  projectId: string
-  projectName: string
+  branchId: string
+  branchName: string
   contextMarkdown: string
   files: FileAttachment[]
 }
@@ -66,7 +67,8 @@ export interface TreeNode {
   type: NodeType
   parentId: string | null
   children: TreeNode[]
-  conversationId?: string
+  chatId?: string
+  starred?: boolean
 }
 
 export const MODELS = {

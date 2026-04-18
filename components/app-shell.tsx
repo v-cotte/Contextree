@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useStore } from '@/store'
 import Sidebar from '@/components/sidebar/sidebar'
-import ProjectView from '@/components/project-view/project-view'
+import BranchView from '@/components/branch-view/branch-view'
 import ChatView from '@/components/chat-view/chat-view'
+import HomeView from '@/components/home-view'
 
 interface AppShellProps {
   user: User
@@ -13,10 +14,7 @@ interface AppShellProps {
 
 export default function AppShell({ user }: AppShellProps) {
   const [mounted, setMounted] = useState(false)
-  const {
-    selectedConversationId,
-    selectedProjectId,
-  } = useStore()
+  const { selectedChatId, selectedBranchId } = useStore()
 
   useEffect(() => {
     setMounted(true)
@@ -24,50 +22,29 @@ export default function AppShell({ user }: AppShellProps) {
 
   if (!mounted) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <div className="text-sm text-muted-foreground">Loading...</div>
+      <div className="flex h-screen w-full items-center justify-center"
+        style={{ background: 'var(--bg-secondary)' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+          Loading...
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden"
+      style={{ background: 'var(--bg-secondary)' }}>
       <Sidebar user={user} />
-      <main className="flex-1 overflow-hidden">
-        {selectedConversationId ? (
-          <ChatView conversationId={selectedConversationId} />
-        ) : selectedProjectId ? (
-          <ProjectView projectId={selectedProjectId} />
+      <main className="flex-1 overflow-hidden flex flex-col"
+        style={{ background: 'chatvar(--bg-primary)' }}>
+        {selectedChatId ? (
+          <ChatView chatId={selectedChatId} />
+        ) : selectedBranchId ? (
+          <BranchView branchId={selectedBranchId} />
         ) : (
-          <EmptyState />
+          <HomeView />
         )}
       </main>
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="text-muted-foreground"
-        >
-          <path d="M10 2L2 7l8 5 8-5-8-5zM2 13l8 5 8-5M2 10l8 5 8-5" />
-        </svg>
-      </div>
-      <div className="text-center">
-        <p className="text-sm font-medium">Welcome to contextree</p>
-        <p className="text-sm text-muted-foreground">
-          Create a project to get started
-        </p>
-      </div>
     </div>
   )
 }

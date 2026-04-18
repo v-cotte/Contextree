@@ -11,10 +11,10 @@ export default function AuthError() {
       <h1 style={{ fontSize: '20px', fontWeight: 500 }}>
         Authentication error
       </h1>
-      <p style={{ color: 'var(--color-text-secondary)' }}>
+      <p style={{ color: 'var(--text-secondary)' }}>
         Something went wrong. Please try again.
       </p>
-      <a href="/auth/login" style={{ color: 'var(--color-text-info)' }}>
+      <a href="/auth/login" style={{ color: 'var(--text-info)' }}>
         Back to login
       </a>
     </div>

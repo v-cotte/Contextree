@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { buildPrompt } from '@/lib/context-builder'
 import { decryptApiKey } from '@/lib/encryption'
 import { createServerSideClient } from '@/lib/supabase-server'
-import { Project, FileAttachment, Message, ResponseMode } from '@/types'
+import { Branch, FileAttachment, Message, ResponseMode } from '@/types'
 
 export async function POST(req: Request) {
   try {
@@ -17,21 +17,23 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const {
-      conversationId,
+      chatId,
       userMessage,
-      projects,
-      filesByProject,
+      branches,
+      filesByBranch,
       history,
       model,
       responseMode,
+      branchId,
     }: {
-      conversationId: string
+      chatId: string
       userMessage: string
-      projects: Project[]
-      filesByProject: Record<string, FileAttachment[]>
+      branches: Branch[]
+      filesByBranch: Record<string, FileAttachment[]>
       history: Message[]
       model: string
       responseMode: ResponseMode
+      branchId: string
     } = body
 
     const { data: keyRow } = await supabase
@@ -53,21 +55,22 @@ export async function POST(req: Request) {
 
     const apiKey = decryptApiKey(keyRow.encrypted_key)
 
-    const fullConversation = {
-      id: conversationId,
-      projectId: body.projectId ?? '',
+    const chat = {
+      id: chatId,
+      branchId: branchId ?? '',
       model,
       responseMode,
       name: '',
+      starred: false,
       createdAt: '',
       updatedAt: '',
       userId: user.id,
     }
 
     const prompt = buildPrompt({
-      conversation: fullConversation,
-      projects,
-      filesByProject,
+      chat,
+      branches,
+      filesByBranch,
       history,
       userMessage,
     })

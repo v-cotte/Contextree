@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
-  Project,
-  Conversation,
+  Branch,
+  Chat,
   Message,
   FileAttachment,
   ResponseMode,
@@ -10,43 +10,38 @@ import {
 } from '@/types'
 
 interface AppState {
-  // data
-  projects: Project[]
-  conversations: Conversation[]
+  branches: Branch[]
+  chats: Chat[]
   messages: Record<string, Message[]>
   files: Record<string, FileAttachment[]>
 
-  // ui state
-  selectedProjectId: string | null
-  selectedConversationId: string | null
+  selectedBranchId: string | null
+  selectedChatId: string | null
   isSidebarOpen: boolean
 
-  // project actions
-  createProject: (name: string, parentId: string | null) => Project
-  updateProject: (id: string, updates: Partial<Project>) => void
-  deleteProject: (id: string) => void
+  createBranch: (name: string, parentId: string | null) => Branch
+  updateBranch: (id: string, updates: Partial<Branch>) => void
+  deleteBranch: (id: string) => void
 
-  // conversation actions
-  createConversation: (name: string, projectId: string) => Conversation
-  updateConversation: (id: string, updates: Partial<Conversation>) => void
-  deleteConversation: (id: string) => void
+  createChat: (name: string, branchId: string) => Chat
+  updateChat: (id: string, updates: Partial<Chat>) => void
+  deleteChat: (id: string) => void
+  toggleStarChat: (id: string) => void
 
-  // message actions
-  addMessage: (conversationId: string, message: Message) => void
-  clearMessages: (conversationId: string) => void
+  addMessage: (chatId: string, message: Message) => void
+  clearMessages: (chatId: string) => void
 
-  // file actions
-  addFile: (projectId: string, file: FileAttachment) => void
-  removeFile: (projectId: string, fileId: string) => void
+  addFile: (branchId: string, file: FileAttachment) => void
+  removeFile: (branchId: string, fileId: string) => void
 
-  // ui actions
-  selectProject: (id: string | null) => void
-  selectConversation: (id: string | null) => void
+  selectBranch: (id: string | null) => void
+  selectChat: (id: string | null) => void
   toggleSidebar: () => void
 
-  // tree helper
   getTreeNodes: () => TreeNode[]
-  getProjectAncestors: (projectId: string) => Project[]
+  getBranchAncestors: (branchId: string) => Branch[]
+  getRecentChats: (limit?: number) => Chat[]
+  getStarredChats: () => Chat[]
 }
 
 const generateId = () => crypto.randomUUID()
@@ -54,16 +49,16 @@ const generateId = () => crypto.randomUUID()
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      projects: [],
-      conversations: [],
+      branches: [],
+      chats: [],
       messages: {},
       files: {},
-      selectedProjectId: null,
-      selectedConversationId: null,
+      selectedBranchId: null,
+      selectedChatId: null,
       isSidebarOpen: true,
 
-      createProject: (name, parentId) => {
-        const project: Project = {
+      createBranch: (name, parentId) => {
+        const branch: Branch = {
           id: generateId(),
           name,
           parentId,
@@ -72,85 +67,86 @@ export const useStore = create<AppState>()(
           updatedAt: new Date().toISOString(),
           userId: 'local',
         }
-        set((state) => ({ projects: [...state.projects, project] }))
-        return project
+        set((state) => ({ branches: [...state.branches, branch] }))
+        return branch
       },
 
-      updateProject: (id, updates) => {
+      updateBranch: (id, updates) => {
         set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === id
-              ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-              : p
+          branches: state.branches.map((b) =>
+            b.id === id
+              ? { ...b, ...updates, updatedAt: new Date().toISOString() }
+              : b
           ),
         }))
       },
 
-      deleteProject: (id) => {
+      deleteBranch: (id) => {
         const state = get()
-        // collect all descendant project ids
-        const getDescendantIds = (projectId: string): string[] => {
-          const children = state.projects.filter(
-            (p) => p.parentId === projectId
+        const getDescendantIds = (branchId: string): string[] => {
+          const children = state.branches.filter(
+            (b) => b.parentId === branchId
           )
           return [
-            projectId,
+            branchId,
             ...children.flatMap((c) => getDescendantIds(c.id)),
           ]
         }
         const idsToDelete = getDescendantIds(id)
-        // collect conversation ids to delete
-        const convIdsToDelete = state.conversations
-          .filter((c) => idsToDelete.includes(c.projectId))
+        const chatIdsToDelete = state.chats
+          .filter((c) => idsToDelete.includes(c.branchId))
           .map((c) => c.id)
 
         set((state) => {
           const newMessages = { ...state.messages }
           const newFiles = { ...state.files }
-          convIdsToDelete.forEach((cid) => delete newMessages[cid])
-          idsToDelete.forEach((pid) => delete newFiles[pid])
+          chatIdsToDelete.forEach((cid) => delete newMessages[cid])
+          idsToDelete.forEach((bid) => delete newFiles[bid])
           return {
-            projects: state.projects.filter(
-              (p) => !idsToDelete.includes(p.id)
+            branches: state.branches.filter(
+              (b) => !idsToDelete.includes(b.id)
             ),
-            conversations: state.conversations.filter(
-              (c) => !convIdsToDelete.includes(c.id)
+            chats: state.chats.filter(
+              (c) => !chatIdsToDelete.includes(c.id)
             ),
             messages: newMessages,
             files: newFiles,
-            selectedProjectId:
-              idsToDelete.includes(state.selectedProjectId ?? '')
-                ? null
-                : state.selectedProjectId,
-            selectedConversationId:
-              convIdsToDelete.includes(state.selectedConversationId ?? '')
-                ? null
-                : state.selectedConversationId,
+            selectedBranchId: idsToDelete.includes(
+              state.selectedBranchId ?? ''
+            )
+              ? null
+              : state.selectedBranchId,
+            selectedChatId: chatIdsToDelete.includes(
+              state.selectedChatId ?? ''
+            )
+              ? null
+              : state.selectedChatId,
           }
         })
       },
 
-      createConversation: (name, projectId) => {
-        const conversation: Conversation = {
+      createChat: (name, branchId) => {
+        const chat: Chat = {
           id: generateId(),
           name,
-          projectId,
+          branchId,
           model: 'claude-sonnet-4-6',
           responseMode: 'concise',
+          starred: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           userId: 'local',
         }
         set((state) => ({
-          conversations: [...state.conversations, conversation],
-          messages: { ...state.messages, [conversation.id]: [] },
+          chats: [...state.chats, chat],
+          messages: { ...state.messages, [chat.id]: [] },
         }))
-        return conversation
+        return chat
       },
 
-      updateConversation: (id, updates) => {
+      updateChat: (id, updates) => {
         set((state) => ({
-          conversations: state.conversations.map((c) =>
+          chats: state.chats.map((c) =>
             c.id === id
               ? { ...c, ...updates, updatedAt: new Date().toISOString() }
               : c
@@ -158,65 +154,68 @@ export const useStore = create<AppState>()(
         }))
       },
 
-      deleteConversation: (id) => {
+      deleteChat: (id) => {
         set((state) => {
           const newMessages = { ...state.messages }
           delete newMessages[id]
           return {
-            conversations: state.conversations.filter((c) => c.id !== id),
+            chats: state.chats.filter((c) => c.id !== id),
             messages: newMessages,
-            selectedConversationId:
-              state.selectedConversationId === id
-                ? null
-                : state.selectedConversationId,
+            selectedChatId:
+              state.selectedChatId === id ? null : state.selectedChatId,
           }
         })
       },
 
-      addMessage: (conversationId, message) => {
+      toggleStarChat: (id) => {
+        set((state) => ({
+          chats: state.chats.map((c) =>
+            c.id === id ? { ...c, starred: !c.starred } : c
+          ),
+        }))
+      },
+
+      addMessage: (chatId, message) => {
         set((state) => ({
           messages: {
             ...state.messages,
-            [conversationId]: [
-              ...(state.messages[conversationId] ?? []),
-              message,
-            ],
+            [chatId]: [...(state.messages[chatId] ?? []), message],
           },
         }))
       },
 
-      clearMessages: (conversationId) => {
+      clearMessages: (chatId) => {
         set((state) => ({
-          messages: { ...state.messages, [conversationId]: [] },
+          messages: { ...state.messages, [chatId]: [] },
         }))
       },
 
-      addFile: (projectId, file) => {
+      addFile: (branchId, file) => {
         set((state) => ({
           files: {
             ...state.files,
-            [projectId]: [...(state.files[projectId] ?? []), file],
+            [branchId]: [...(state.files[branchId] ?? []), file],
           },
         }))
       },
 
-      removeFile: (projectId, fileId) => {
+      removeFile: (branchId, fileId) => {
         set((state) => ({
           files: {
             ...state.files,
-            [projectId]: (state.files[projectId] ?? []).filter(
+            [branchId]: (state.files[branchId] ?? []).filter(
               (f) => f.id !== fileId
             ),
           },
         }))
       },
 
-      selectProject: (id) => {
-        set({ selectedProjectId: id, selectedConversationId: null })
+      selectBranch: (id) => {
+        set({ selectedBranchId: id, selectedChatId: null })
       },
 
-      selectConversation: (id) => {
-        set({ selectedConversationId: id })
+      selectChat: (id) => {
+        set({ selectedChatId: id, selectedBranchId: null })
       },
 
       toggleSidebar: () => {
@@ -224,50 +223,65 @@ export const useStore = create<AppState>()(
       },
 
       getTreeNodes: () => {
-        const { projects, conversations } = get()
+        const { branches, chats } = get()
 
-        const buildNode = (project: Project): TreeNode => {
-          const childProjects = projects.filter(
-            (p) => p.parentId === project.id
+        const buildNode = (branch: Branch): TreeNode => {
+          const childBranches = branches.filter(
+            (b) => b.parentId === branch.id
           )
-          const childConversations = conversations.filter(
-            (c) => c.projectId === project.id
-          )
+          const childChats = chats.filter((c) => c.branchId === branch.id)
           return {
-            id: project.id,
-            name: project.name,
-            type: 'project',
-            parentId: project.parentId,
+            id: branch.id,
+            name: branch.name,
+            type: 'branch',
+            parentId: branch.parentId,
             children: [
-              ...childProjects.map(buildNode),
-              ...childConversations.map((c) => ({
+              ...childBranches.map(buildNode),
+              ...childChats.map((c) => ({
                 id: c.id,
                 name: c.name,
-                type: 'conversation' as const,
-                parentId: project.id,
+                type: 'chat' as const,
+                parentId: branch.id,
                 children: [],
-                conversationId: c.id,
+                chatId: c.id,
+                starred: c.starred,
               })),
             ],
           }
         }
 
-        return projects
-          .filter((p) => p.parentId === null)
+        return branches
+          .filter((b) => b.parentId === null)
           .map(buildNode)
       },
 
-      getProjectAncestors: (projectId) => {
-        const { projects } = get()
-        const ancestors: Project[] = []
-        let current = projects.find((p) => p.id === projectId)
+      getBranchAncestors: (branchId) => {
+        const { branches } = get()
+        const ancestors: Branch[] = []
+        let current = branches.find((b) => b.id === branchId)
         while (current) {
           ancestors.unshift(current)
           current = current.parentId
-            ? projects.find((p) => p.id === current!.parentId)
+            ? branches.find((b) => b.id === current!.parentId)
             : undefined
         }
         return ancestors
+      },
+
+      getRecentChats: (limit = 10) => {
+        const { chats } = get()
+        return [...chats]
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt).getTime() -
+              new Date(a.updatedAt).getTime()
+          )
+          .slice(0, limit)
+      },
+
+      getStarredChats: () => {
+        const { chats } = get()
+        return chats.filter((c) => c.starred)
       },
     }),
     {

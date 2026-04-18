@@ -1,36 +1,52 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useStore } from '@/store'
 import { TreeNode } from '@/types'
-import { Button } from '@/components/ui/button'
 import ApiKeysDialog from '@/components/api-keys-dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+
 
 interface SidebarProps {
   user: User
 }
 
 export default function Sidebar({ user }: SidebarProps) {
-    const [apiKeysOpen, setApiKeysOpen] = useState(false)
+  const [apiKeysOpen, setApiKeysOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(240)
+  const isResizing = useRef(false)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isResizing.current = true
+    const startX = e.clientX
+    const startWidth = sidebarWidth
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return
+      const newWidth = Math.min(400, Math.max(180, startWidth + e.clientX - startX))
+      setSidebarWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      isResizing.current = false
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
   const {
     getTreeNodes,
-    createProject,
-    selectProject,
-    selectConversation,
-    selectedProjectId,
-    selectedConversationId,
-    isSidebarOpen,
+    createBranch,
+    selectBranch,
+    selectChat,
+    selectedBranchId,
+    selectedChatId,
   } = useStore()
 
   const router = useRouter()
@@ -43,71 +59,89 @@ export default function Sidebar({ user }: SidebarProps) {
     router.refresh()
   }
 
-  const handleNewRootProject = () => {
-    const project = createProject('New project', null)
-    selectProject(project.id)
+  const handleNewBranch = () => {
+    const branch = createBranch('New branch', null)
+    selectBranch(branch.id)
   }
 
-  if (!isSidebarOpen) return null
-
   return (
-    <aside className="flex h-full w-[220px] flex-shrink-0 flex-col border-r border-border bg-muted/30">
-      <div className="flex items-center justify-between border-b border-border px-3 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#7F77DD]">
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              stroke="white"
-              strokeWidth="1.5"
-            >
-              <path d="M2 10L6 2l4 8" />
-              <path d="M3.5 7h5" />
-            </svg>
-          </div>
-          <span className="text-sm font-medium">contextree</span>
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground">
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="currentColor"
-              >
-                <circle cx="7" cy="2" r="1.2" />
-                <circle cx="7" cy="7" r="1.2" />
-                <circle cx="7" cy="12" r="1.2" />
-              </svg>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <div className="px-2 py-1.5">
-              <p className="text-xs text-muted-foreground">{user.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setApiKeysOpen(true)}>
-                API keys
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleSignOut}
-              className="text-destructive"
-            >
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <aside style={{
+      width: `${sidebarWidth}px`,
+      flexShrink: 0,
+      background: 'var(--bg-secondary)',
+      borderRight: '1px solid var(--border-subtle)',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      overflow: 'hidden',
+      position: 'relative',
+    }}>
+      <div style={{
+        padding: '14px 12px 10px',
+        borderBottom: '1px solid var(--border-subtle)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flexShrink: 0,
+      }}>
+        <button
+          onClick={() => { selectBranch(null); selectChat(null) }}
+          style={{
+            flex: 1,
+            textAlign: 'left',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: '17px',
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.01em',
+          }}>
+            Contextree
+          </span>
+        </button>
+        <button
+          onClick={handleNewBranch}
+          title="New branch"
+          style={{
+            width: '26px', height: '26px',
+            borderRadius: '6px',
+            border: 'none',
+            background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            color: 'var(--text-faint)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bg-elevated)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--text-faint)'
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M6.5 1v11M1 6.5h11" />
+          </svg>
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-2">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
         {nodes.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            No projects yet
+          <p style={{
+            padding: '16px 12px',
+            fontSize: '12px',
+            color: 'var(--text-faint)',
+            textAlign: 'center',
+            lineHeight: '1.6',
+          }}>
+            No branches yet
           </p>
         ) : (
           nodes.map((node) => (
@@ -115,33 +149,177 @@ export default function Sidebar({ user }: SidebarProps) {
               key={node.id}
               node={node}
               depth={0}
-              selectedProjectId={selectedProjectId}
-              selectedConversationId={selectedConversationId}
-              onSelectProject={selectProject}
-              onSelectConversation={selectConversation}
+              selectedBranchId={selectedBranchId}
+              selectedChatId={selectedChatId}
+              onSelectBranch={selectBranch}
+              onSelectChat={selectChat}
             />
           ))
         )}
       </div>
 
-      <div className="border-t border-border p-2">
+      <div style={{
+        padding: '10px 10px',
+        borderTop: '1px solid var(--border-subtle)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        flexShrink: 0,
+        position: 'relative',
+      }}>
         <button
-          onClick={handleNewRootProject}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+          onClick={handleNewBranch}
+          style={{
+            flex: 1,
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '7px 10px',
+            borderRadius: '7px',
+            border: '1px dashed var(--border-default)',
+            background: 'transparent',
+            cursor: 'pointer',
+            fontSize: '11.5px',
+            color: 'var(--text-faint)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--accent)'
+            e.currentTarget.style.color = 'var(--accent)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-default)'
+            e.currentTarget.style.color = 'var(--text-faint)'
+          }}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <path d="M6 2v8M2 6h8" />
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M5.5 1v9M1 5.5h9" />
           </svg>
-          New project
+          New branch
         </button>
+
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setApiKeysOpen(true)}
+            title="API keys"
+            style={{
+              width: '30px', height: '30px',
+              borderRadius: '7px',
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--text-faint)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--bg-elevated)'
+              e.currentTarget.style.color = 'var(--text-secondary)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = 'var(--text-faint)'
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <circle cx="6.5" cy="6.5" r="5" />
+              <circle cx="6.5" cy="6.5" r="1.5" />
+              <path d="M6.5 1.5v1.5M6.5 9.5v1.5M1.5 6.5h1.5M9.5 6.5h1.5" />
+            </svg>
+          </button>
+        </div>
+
+        <button
+          onClick={() => setUserMenuOpen(!userMenuOpen)}
+          title={user.email}
+          style={{
+            width: '30px', height: '30px',
+            borderRadius: '50%',
+            border: '1px solid var(--border-subtle)',
+            background: 'var(--bg-elevated)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            color: 'var(--text-secondary)',
+            fontSize: '12px',
+            fontWeight: 500,
+          }}
+        >
+          {user.email?.[0].toUpperCase()}
+        </button>
+
+        {userMenuOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '52px',
+              left: '10px',
+              right: '10px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '10px',
+              padding: '6px',
+              zIndex: 50,
+            }}
+          >
+            <div style={{
+              padding: '6px 10px 8px',
+              fontSize: '11px',
+              color: 'var(--text-faint)',
+              borderBottom: '1px solid var(--border-subtle)',
+              marginBottom: '4px',
+            }}>
+              {user.email}
+            </div>
+            <button
+              onClick={() => { setApiKeysOpen(true); setUserMenuOpen(false) }}
+              style={{
+                width: '100%', textAlign: 'left',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'transparent',
+                fontSize: '12.5px',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+            >
+              API keys
+            </button>
+            <button
+              onClick={handleSignOut}
+              style={{
+                width: '100%', textAlign: 'left',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                background: 'transparent',
+                fontSize: '12.5px',
+                color: 'var(--danger)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
+
+      <div
+        onMouseDown={handleMouseDown}
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: '4px',
+          height: '100%',
+          cursor: 'col-resize',
+          zIndex: 10,
+          background: 'transparent',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--accent)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+      />
+
       <ApiKeysDialog open={apiKeysOpen} onClose={() => setApiKeysOpen(false)} />
     </aside>
   )
@@ -150,104 +328,134 @@ export default function Sidebar({ user }: SidebarProps) {
 interface TreeItemProps {
   node: TreeNode
   depth: number
-  selectedProjectId: string | null
-  selectedConversationId: string | null
-  onSelectProject: (id: string) => void
-  onSelectConversation: (id: string) => void
+  selectedBranchId: string | null
+  selectedChatId: string | null
+  onSelectBranch: (id: string) => void
+  onSelectChat: (id: string) => void
 }
 
 function TreeItem({
   node,
   depth,
-  selectedProjectId,
-  selectedConversationId,
-  onSelectProject,
-  onSelectConversation,
+  selectedBranchId,
+  selectedChatId,
+  onSelectBranch,
+  onSelectChat,
 }: TreeItemProps) {
   const [expanded, setExpanded] = useState(true)
-  const isProject = node.type === 'project'
-  const isSelected = isProject
-    ? selectedProjectId === node.id
-    : selectedConversationId === node.id
+  const isBranch = node.type === 'branch'
+  const isSelected = isBranch
+    ? selectedBranchId === node.id
+    : selectedChatId === node.id
   const hasChildren = node.children.length > 0
 
   const handleClick = () => {
-    if (isProject) {
-      onSelectProject(node.id)
-      setExpanded(true)
+    if (isBranch) {
+      onSelectBranch(node.id)
+      if (!expanded) setExpanded(true)
     } else {
-      onSelectConversation(node.id)
+      onSelectChat(node.id)
     }
+  }
+
+  const baseStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: `4px 8px 4px ${8 + Math.min(depth, 5) * 16}px`,
+    cursor: 'pointer',
+    borderRadius: 0,
+    background: isSelected ? 'var(--bg-elevated)' : 'transparent',
+    borderLeft: isSelected && !isBranch ? '2px solid var(--accent)' : '2px solid transparent',
   }
 
   return (
     <div>
       <div
+        style={baseStyle}
         onClick={handleClick}
-        className={cn(
-          'group flex cursor-pointer items-center gap-1.5 rounded-sm py-1 pr-2 text-sm',
-          isSelected
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-          isSelected && !isProject && 'border-l-2 border-[#7F77DD]'
-        )}
-        style={{ paddingLeft: `${8 + depth * 16}px` }}
+        onMouseEnter={(e) => {
+          if (!isSelected) e.currentTarget.style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected) e.currentTarget.style.background = 'transparent'
+        }}
       >
-        {isProject && hasChildren ? (
+        {isBranch ? (
           <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setExpanded(!expanded)
+            onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+            style={{
+              width: '16px', height: '16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-faint)',
+              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.15s',
+              flexShrink: 0,
+              padding: 0,
             }}
-            className="flex h-4 w-4 flex-shrink-0 items-center justify-center"
           >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="currentColor"
-              className={cn(
-                'transition-transform',
-                expanded ? 'rotate-90' : 'rotate-0'
-              )}
-            >
-              <path d="M3 2l4 3-4 3V2z" />
-            </svg>
+            {hasChildren ? (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <path d="M3 2l4 3-4 3V2z" />
+              </svg>
+            ) : (
+              <span style={{ width: '10px' }} />
+            )}
           </button>
         ) : (
-          <span className="w-4 flex-shrink-0" />
+          <span style={{ width: '16px', flexShrink: 0 }} />
         )}
 
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke={isProject ? '#7F77DD' : 'currentColor'}
-          strokeWidth="1.4"
-          className="flex-shrink-0"
-        >
-          {isProject ? (
-            <rect x="2" y="3" width="12" height="10" rx="2" />
-          ) : (
-            <path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H5l-3 2V4z" />
-          )}
-        </svg>
+        {isBranch ? (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+            stroke={isSelected ? 'var(--accent)' : 'var(--text-faint)'}
+            strokeWidth="1.4"
+            style={{ flexShrink: 0 }}>
+            <rect x="1" y="2" width="12" height="10" rx="2" />
+            <path d="M1 5h12" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"
+            stroke={isSelected ? 'var(--accent)' : node.starred ? 'var(--accent)' : 'var(--text-faint)'}
+            strokeWidth="1.3"
+            style={{ flexShrink: 0 }}>
+            <path d="M1 3A1.5 1.5 0 012.5 1.5h8A1.5 1.5 0 0112 3v5.5A1.5 1.5 0 0110.5 10H4L1 12V3z" />
+          </svg>
+        )}
 
-        <span className="flex-1 truncate text-xs">{node.name}</span>
+        <span style={{
+          flex: 1,
+          fontSize: '12.5px',
+          color: isSelected
+            ? 'var(--text-primary)'
+            : 'var(--text-muted)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          fontWeight: isSelected ? 500 : 400,
+        }}>
+          {node.starred && !isBranch && (
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="var(--accent)"
+              style={{ marginRight: '4px', verticalAlign: 'middle' }}>
+              <path d="M5 1l1.2 2.4 2.6.4-1.9 1.8.5 2.6L5 7l-2.4 1.2.5-2.6L1.2 3.8l2.6-.4z" />
+            </svg>
+          )}
+          {node.name}
+        </span>
       </div>
 
-      {isProject && expanded && hasChildren && (
+      {isBranch && expanded && hasChildren && (
         <div>
           {node.children.map((child) => (
             <TreeItem
               key={child.id}
               node={child}
               depth={depth + 1}
-              selectedProjectId={selectedProjectId}
-              selectedConversationId={selectedConversationId}
-              onSelectProject={onSelectProject}
-              onSelectConversation={onSelectConversation}
+              selectedBranchId={selectedBranchId}
+              selectedChatId={selectedChatId}
+              onSelectBranch={onSelectBranch}
+              onSelectChat={onSelectChat}
             />
           ))}
         </div>

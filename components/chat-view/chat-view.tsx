@@ -3,40 +3,41 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStore } from '@/store'
 import { Message, ResponseMode, MODELS } from '@/types'
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
 
 interface ChatViewProps {
-  conversationId: string
+  chatId: string
 }
 
-export default function ChatView({ conversationId }: ChatViewProps) {
+export default function ChatView({ chatId }: ChatViewProps) {
   const {
-    conversations,
+    chats,
     messages,
-    projects,
+    branches,
     files,
-    getProjectAncestors,
+    getBranchAncestors,
     addMessage,
-    updateConversation,
-    selectProject,
+    updateChat,
+    toggleStarChat,
+    deleteChat,
+    selectBranch,
+    selectChat,
   } = useStore()
 
-  const conversation = conversations.find((c) => c.id === conversationId)
-  const conversationMessages = messages[conversationId] ?? []
+  const chat = chats.find((c) => c.id === chatId)
+  const chatMessages = messages[chatId] ?? []
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue] = useState(chat?.name ?? '')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const ancestors = conversation
-    ? getProjectAncestors(conversation.projectId)
-    : []
+  const ancestors = chat ? getBranchAncestors(chat.branchId) : []
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversationMessages, streamingContent])
+  }, [chatMessages, streamingContent])
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -46,20 +47,32 @@ export default function ChatView({ conversationId }: ChatViewProps) {
     }
   }, [input])
 
-  if (!conversation) return null
+  if (!chat) return null
+
+  const handleNameSave = () => {
+    if (nameValue.trim()) updateChat(chatId, { name: nameValue.trim() })
+    setEditingName(false)
+  }
+
+  const handleDelete = () => {
+    const branchId = chat.branchId
+    deleteChat(chatId)
+    selectChat(null)
+    selectBranch(branchId)
+  }
 
   const handleSend = async () => {
     if (!input.trim() || loading) return
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
-      conversationId,
+      chatId,
       role: 'user',
       content: input.trim(),
       createdAt: new Date().toISOString(),
     }
 
-    addMessage(conversationId, userMessage)
+    addMessage(chatId, userMessage)
     setInput('')
     setLoading(true)
     setStreamingContent('')
@@ -69,14 +82,14 @@ export default function ChatView({ conversationId }: ChatViewProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId,
+          chatId,
           userMessage: input.trim(),
-          projects,
-          filesByProject: files,
-          history: conversationMessages,
-          model: conversation.model,
-          responseMode: conversation.responseMode,
-          projectId: conversation.projectId,
+          branches,
+          filesByBranch: files,
+          history: chatMessages,
+          model: chat.model,
+          responseMode: chat.responseMode,
+          branchId: chat.branchId,
         }),
       })
 
@@ -101,25 +114,30 @@ export default function ChatView({ conversationId }: ChatViewProps) {
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
-        conversationId,
+        chatId,
         role: 'assistant',
         content: fullContent,
-        model: conversation.model,
-        responseMode: conversation.responseMode,
+        model: chat.model,
+        responseMode: chat.responseMode,
         createdAt: new Date().toISOString(),
       }
 
-      addMessage(conversationId, assistantMessage)
+      addMessage(chatId, assistantMessage)
       setStreamingContent('')
+
+      if (chatMessages.length === 0) {
+        const firstWords = input.trim().split(' ').slice(0, 5).join(' ')
+        updateChat(chatId, { name: firstWords })
+      }
     } catch (err: unknown) {
       const errorMessage: Message = {
         id: crypto.randomUUID(),
-        conversationId,
+        chatId,
         role: 'assistant',
         content: `Error: ${err instanceof Error ? err.message : 'Something went wrong'}`,
         createdAt: new Date().toISOString(),
       }
-      addMessage(conversationId, errorMessage)
+      addMessage(chatId, errorMessage)
       setStreamingContent('')
     } finally {
       setLoading(false)
@@ -127,55 +145,192 @@ export default function ChatView({ conversationId }: ChatViewProps) {
   }
 
   const allModels = Object.values(MODELS).flat()
+  const totalFiles = Object.values(files)
+    .flat()
+    .filter((f) => ancestors.some((a) => a.id === f.branchId)).length
+
+  const estimatedTokens = Math.round(
+    ancestors.reduce((sum, a) => sum + (a.contextMarkdown?.length ?? 0), 0) / 4
+  )
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex flex-shrink-0 items-center gap-2 border-b border-border px-5 py-3">
-        <div className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground">
-          {ancestors.map((ancestor, i) => (
-            <span key={ancestor.id} className="flex items-center gap-1.5">
-              <button
-                onClick={() => selectProject(ancestor.id)}
-                className="hover:text-foreground"
-              >
-                {ancestor.name}
-              </button>
-              <span>/</span>
-            </span>
-          ))}
-          <span className="text-sm font-medium text-foreground">
-            {conversation.name}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '0 16px',
+        height: '46px',
+        borderBottom: '1px solid var(--border-subtle)',
+        flexShrink: 0,
+      }}>
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={handleNameSave}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleNameSave()
+              if (e.key === 'Escape') setEditingName(false)
+            }}
+            style={{
+              flex: 1,
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-emphasis)',
+              borderRadius: '5px',
+              padding: '3px 10px',
+              fontFamily: 'var(--font-serif)',
+              fontStyle: 'italic',
+              fontSize: '15px',
+              color: 'var(--text-primary)',
+              outline: 'none',
+            }}
+          />
+        ) : (
+          <span style={{
+            flex: 1,
+            fontFamily: 'var(--font-serif)',
+            fontStyle: 'italic',
+            fontSize: '15px',
+            color: 'var(--text-primary)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>
+            {chat.name}
           </span>
-        </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
-            {ancestors.length} context{' '}
-            {ancestors.length === 1 ? 'layer' : 'layers'}
-          </Badge>
-        </div>
+        <button
+          onClick={() => toggleStarChat(chatId)}
+          title={chat.starred ? 'Unstar' : 'Star'}
+          style={{
+            width: '28px', height: '28px',
+            borderRadius: '6px', border: 'none',
+            background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            color: chat.starred ? 'var(--accent)' : 'var(--text-faint)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14"
+            fill={chat.starred ? 'var(--accent)' : 'none'}
+            stroke={chat.starred ? 'var(--accent)' : 'currentColor'}
+            strokeWidth="1.3">
+            <path d="M7 1l1.8 3.6 4 .6-2.9 2.8.7 4L7 10l-3.6 1.9.7-4L1.2 5.2l4-.6z" />
+          </svg>
+        </button>
+
+        <div style={{ width: '1px', height: '16px', background: 'var(--border-default)' }} />
+
+        <button
+          onClick={() => { setNameValue(chat.name); setEditingName(true) }}
+          title="Rename"
+          style={{
+            width: '28px', height: '28px',
+            borderRadius: '6px', border: 'none',
+            background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--text-faint)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <path d="M2 10h2l6-6-2-2-6 6v2zM8.5 2.5l2 2" />
+          </svg>
+        </button>
+
+        <button
+          onClick={handleDelete}
+          title="Delete"
+          style={{
+            width: '28px', height: '28px',
+            borderRadius: '6px', border: 'none',
+            background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--text-faint)',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--danger)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <path d="M2 3.5h9M5 3.5V2.5h3v1M4.5 3.5l.5 7h3l.5-7" />
+          </svg>
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        {conversationMessages.length === 0 && !streamingContent ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2">
-            <p className="text-sm font-medium">Start the conversation</p>
-            <p className="text-xs text-muted-foreground">
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        padding: '6px 16px',
+        borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--bg-secondary)',
+        flexShrink: 0,
+      }}>
+        {ancestors.map((ancestor, i) => (
+          <span key={ancestor.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => selectBranch(ancestor.id)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                fontSize: '10.5px',
+                padding: '2px 8px',
+                borderRadius: '20px',
+                background: 'var(--accent-subtle)',
+                border: '1px solid var(--accent-border)',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M1 5h8M5 1l4 4-4 4" />
+              </svg>
+              {ancestor.name}
+            </button>
+            {i < ancestors.length - 1 && (
+              <span style={{ color: 'var(--border-emphasis)', fontSize: '11px' }}>›</span>
+            )}
+          </span>
+        ))}
+        <span style={{
+          marginLeft: 'auto',
+          fontSize: '10.5px',
+          color: 'var(--text-faint)',
+          padding: '2px 8px',
+          borderRadius: '20px',
+          border: '1px solid var(--border-subtle)',
+        }}>
+          ~{estimatedTokens.toLocaleString()} tokens
+        </span>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 12px' }}>
+        {chatMessages.length === 0 && !streamingContent ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: '8px',
+          }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+              Start the conversation
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-faint)' }}>
               {ancestors.length > 0
-                ? `Context from ${ancestors.map((a) => a.name).join(' → ')} is loaded`
-                : 'No context loaded — add context to the parent project'}
+                ? `Context from ${ancestors.map((a) => a.name).join(' › ')} is loaded`
+                : 'No context — add context to the parent branch'}
             </p>
           </div>
         ) : (
-          <div className="mx-auto max-w-3xl space-y-4">
-            {conversationMessages.map((msg) => (
+          <div style={{ maxWidth: '680px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {chatMessages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
             {streamingContent && (
               <MessageBubble
                 message={{
                   id: 'streaming',
-                  conversationId,
+                  chatId,
                   role: 'assistant',
                   content: streamingContent,
                   createdAt: new Date().toISOString(),
@@ -188,9 +343,14 @@ export default function ChatView({ conversationId }: ChatViewProps) {
         )}
       </div>
 
-      <div className="flex-shrink-0 border-t border-border px-5 py-3">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-lg border border-border focus-within:border-[#7F77DD]">
+      <div style={{ flexShrink: 0, padding: '10px 16px 14px' }}>
+        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+          <div style={{
+            border: '1px solid var(--border-default)',
+            borderRadius: '12px',
+            background: 'var(--bg-secondary)',
+            overflow: 'hidden',
+          }}>
             <textarea
               ref={textareaRef}
               value={input}
@@ -201,42 +361,68 @@ export default function ChatView({ conversationId }: ChatViewProps) {
                   handleSend()
                 }
               }}
-              placeholder={`Ask anything — context from ${ancestors.map((a) => a.name).join(' + ')} is loaded…`}
-              className="w-full resize-none bg-transparent px-3 pt-3 text-sm outline-none placeholder:text-muted-foreground"
+              placeholder={`Ask anything — ${ancestors.map((a) => a.name).join(' + ')} context loaded…`}
+              style={{
+                width: '100%',
+                resize: 'none',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                padding: '12px 14px 6px',
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+                fontFamily: 'var(--font-sans)',
+                lineHeight: '1.5',
+              }}
               rows={1}
               disabled={loading}
             />
-            <div className="flex items-center gap-2 px-3 pb-2 pt-1">
-              {(['concise', 'detailed', 'step-by-step'] as ResponseMode[]).map(
-                (mode) => (
-                  <button
-                    key={mode}
-                    onClick={() =>
-                      updateConversation(conversationId, {
-                        responseMode: mode,
-                      })
-                    }
-                    className={cn(
-                      'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
-                      conversation.responseMode === mode
-                        ? 'border-[#AFA9EC] bg-[#EEEDFE] text-[#534AB7]'
-                        : 'border-border text-muted-foreground hover:border-border hover:text-foreground'
-                    )}
-                  >
-                    {mode}
-                  </button>
-                )
-              )}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 10px 8px',
+            }}>
+              {(['concise', 'detailed', 'step-by-step'] as ResponseMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => updateChat(chatId, { responseMode: mode })}
+                  style={{
+                    fontSize: '10.5px',
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid',
+                    borderColor: chat.responseMode === mode
+                      ? 'var(--accent-border)'
+                      : 'var(--border-default)',
+                    background: chat.responseMode === mode
+                      ? 'var(--accent-subtle)'
+                      : 'transparent',
+                    color: chat.responseMode === mode
+                      ? 'var(--accent)'
+                      : 'var(--text-faint)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {mode}
+                </button>
+              ))}
 
               <select
-                value={conversation.model}
-                onChange={(e) =>
-                  updateConversation(conversationId, { model: e.target.value })
-                }
-                className="ml-auto rounded-full border border-border bg-transparent px-2.5 py-0.5 text-xs text-muted-foreground outline-none"
+                value={chat.model}
+                onChange={(e) => updateChat(chatId, { model: e.target.value })}
+                style={{
+                  marginLeft: 'auto',
+                  fontSize: '10.5px',
+                  padding: '3px 8px',
+                  borderRadius: '20px',
+                  border: '1px solid var(--border-default)',
+                  background: 'transparent',
+                  color: 'var(--text-faint)',
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
               >
                 {allModels.map((m) => (
-                  <option key={m.id} value={m.id}>
+                  <option key={m.id} value={m.id} style={{ background: '#1A1A24' }}>
                     {m.label}
                   </option>
                 ))}
@@ -245,22 +431,30 @@ export default function ChatView({ conversationId }: ChatViewProps) {
               <button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#7F77DD] text-white disabled:opacity-40"
+                style={{
+                  width: '28px', height: '28px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: loading || !input.trim()
+                    ? 'var(--border-emphasis)'
+                    : 'linear-gradient(135deg, #7C70DC, #9B8FE8)',
+                  cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}
               >
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                >
-                  <path d="M2 10L10 6 2 2v3l6 1-6 1v3z" />
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8">
+                  <path d="M1 9.5L9.5 5.5 1 1.5v3l7 1-7 1v3z" />
                 </svg>
               </button>
             </div>
           </div>
-          <p className="mt-1.5 text-center text-xs text-muted-foreground">
+          <p style={{
+            textAlign: 'center',
+            fontSize: '11px',
+            color: 'var(--text-faint)',
+            marginTop: '6px',
+          }}>
             Enter to send · Shift+Enter for new line
           </p>
         </div>
@@ -279,21 +473,37 @@ function MessageBubble({
   const isUser = message.role === 'user'
 
   return (
-    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
-      <div
-        className={cn(
-          'max-w-[85%] rounded-xl px-4 py-2.5 text-sm',
-          isUser
-            ? 'bg-[#7F77DD] text-white'
-            : 'border border-border bg-muted/30 text-foreground'
-        )}
-      >
-        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-        {isStreaming && (
-          <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-current opacity-70" />
-        )}
+    <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
+      <div>
+        <div style={{
+          maxWidth: '85%',
+          padding: '10px 14px',
+          borderRadius: isUser ? '14px 14px 4px 14px' : '4px 14px 14px 14px',
+          fontSize: '13px',
+          lineHeight: '1.65',
+          background: isUser ? 'var(--accent-subtle)' : 'var(--bg-elevated)',
+          border: `1px solid ${isUser ? 'var(--accent-border)' : 'var(--border-subtle)'}`,
+          color: isUser ? 'var(--text-primary)' : 'var(--text-secondary)',
+        }}>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{message.content}</p>
+          {isStreaming && (
+            <span style={{
+              display: 'inline-block',
+              width: '2px', height: '14px',
+              background: 'var(--accent)',
+              marginLeft: '2px',
+              verticalAlign: 'middle',
+              animation: 'pulse 1s infinite',
+            }} />
+          )}
+        </div>
         {!isUser && message.model && (
-          <p className="mt-1.5 text-xs opacity-50">
+          <p style={{
+            fontSize: '10.5px',
+            color: 'var(--text-faint)',
+            marginTop: '4px',
+            paddingLeft: '4px',
+          }}>
             {message.model} · {message.responseMode ?? 'concise'}
           </p>
         )}
