@@ -13,7 +13,6 @@ export default function ChatView({ chatId }: ChatViewProps) {
     chats,
     messages,
     branches,
-    files,
     getBranchAncestors,
     addMessage,
     updateChat,
@@ -30,8 +29,12 @@ export default function ChatView({ chatId }: ChatViewProps) {
   const [streamingContent, setStreamingContent] = useState('')
   const [editingName, setEditingName] = useState(false)
   const [nameValue, setNameValue] = useState(chat?.name ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [modelOpen, setModelOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const ancestors = chat ? getBranchAncestors(chat.branchId) : []
 
@@ -46,6 +49,24 @@ export default function ChatView({ chatId }: ChatViewProps) {
         Math.min(textareaRef.current.scrollHeight, 200) + 'px'
     }
   }, [input])
+
+  useEffect(() => {
+    setMenuOpen(false)
+    setModelOpen(false)
+    setConfirmingDelete(false)
+  }, [chatId])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+        setConfirmingDelete(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
 
   if (!chat) return null
 
@@ -145,164 +166,212 @@ export default function ChatView({ chatId }: ChatViewProps) {
   }
 
   const allModels = Object.values(MODELS).flat()
-  const totalFiles = Object.values(files)
-    .flat()
-    .filter((f) => ancestors.some((a) => a.id === f.branchId)).length
-
-  const estimatedTokens = Math.round(
-    ancestors.reduce((sum, a) => sum + (a.contextMarkdown?.length ?? 0), 0) / 4
-  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '8px',
-        padding: '0 16px',
-        height: '46px',
-        borderBottom: '1px solid var(--border-subtle)',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '0 24px',
+        height: '60px',
         flexShrink: 0,
       }}>
-        {editingName ? (
-          <input
-            autoFocus
-            value={nameValue}
-            onChange={(e) => setNameValue(e.target.value)}
-            onBlur={handleNameSave}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleNameSave()
-              if (e.key === 'Escape') setEditingName(false)
-            }}
-            style={{
-              flex: 1,
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-emphasis)',
-              borderRadius: '5px',
-              padding: '3px 10px',
-              fontFamily: 'var(--font-serif)',
-              fontStyle: 'italic',
-              fontSize: '15px',
-              color: 'var(--text-primary)',
-              outline: 'none',
-            }}
-          />
-        ) : (
-          <span style={{
-            flex: 1,
-            fontFamily: 'var(--font-serif)',
-            fontStyle: 'italic',
-            fontSize: '15px',
-            color: 'var(--text-primary)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}>
-            {chat.name}
-          </span>
-        )}
 
-        <button
-          onClick={() => toggleStarChat(chatId)}
-          title={chat.starred ? 'Unstar' : 'Star'}
-          style={{
-            width: '28px', height: '28px',
-            borderRadius: '6px', border: 'none',
-            background: 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-            color: chat.starred ? 'var(--accent)' : 'var(--text-faint)',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14"
-            fill={chat.starred ? 'var(--accent)' : 'none'}
-            stroke={chat.starred ? 'var(--accent)' : 'currentColor'}
-            strokeWidth="1.3">
-            <path d="M7 1l1.8 3.6 4 .6-2.9 2.8.7 4L7 10l-3.6 1.9.7-4L1.2 5.2l4-.6z" />
-          </svg>
-        </button>
-
-        <div style={{ width: '1px', height: '16px', background: 'var(--border-default)' }} />
-
-        <button
-          onClick={() => { setNameValue(chat.name); setEditingName(true) }}
-          title="Rename"
-          style={{
-            width: '28px', height: '28px',
-            borderRadius: '6px', border: 'none',
-            background: 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'var(--text-faint)',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)' }}
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M2 10h2l6-6-2-2-6 6v2zM8.5 2.5l2 2" />
-          </svg>
-        </button>
-
-        <button
-          onClick={handleDelete}
-          title="Delete"
-          style={{
-            width: '28px', height: '28px',
-            borderRadius: '6px', border: 'none',
-            background: 'transparent',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'var(--text-faint)',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = 'var(--danger)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-faint)' }}
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M2 3.5h9M5 3.5V2.5h3v1M4.5 3.5l.5 7h3l.5-7" />
-          </svg>
-        </button>
-      </div>
-
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: '6px',
-        padding: '6px 16px',
-        borderBottom: '1px solid var(--border-subtle)',
-        background: 'var(--bg-secondary)',
-        flexShrink: 0,
-      }}>
-        {ancestors.map((ancestor, i) => (
-          <span key={ancestor.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              onClick={() => selectBranch(ancestor.id)}
+        {/* Left: name button (dropdown trigger) or rename input */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          {editingName ? (
+            <input
+              autoFocus
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={handleNameSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSave()
+                if (e.key === 'Escape') setEditingName(false)
+              }}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                fontSize: '10.5px',
-                padding: '2px 8px',
-                borderRadius: '20px',
-                background: 'var(--accent-subtle)',
-                border: '1px solid var(--accent-border)',
-                color: 'var(--accent)',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-emphasis)',
+                borderRadius: '8px',
+                padding: '5px 12px',
+                fontFamily: 'var(--font-serif)',
+                fontStyle: 'italic',
+                fontSize: '18px',
+                color: 'var(--text-primary)',
+                outline: 'none',
+                width: '320px',
+              }}
+            />
+          ) : (
+            <button
+              onClick={() => { setMenuOpen((o) => !o); setConfirmingDelete(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '7px',
+                background: menuOpen ? 'var(--bg-elevated)' : 'transparent',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '5px 10px',
                 cursor: 'pointer',
+                maxWidth: '480px',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-elevated)' }}
+              onMouseLeave={(e) => { if (!menuOpen) e.currentTarget.style.background = 'transparent' }}
+            >
+              {chat.starred && (
+                <svg width="11" height="11" viewBox="0 0 10 10" fill="var(--accent)" style={{ flexShrink: 0 }}>
+                  <path d="M5 1l1.2 2.4 2.6.4-1.9 1.8.5 2.6L5 7l-2.4 1.2.5-2.6L1.2 3.8l2.6-.4z" />
+                </svg>
+              )}
+              <span style={{
+                fontFamily: 'var(--font-serif)',
+                fontStyle: 'italic',
+                fontSize: '18px',
+                color: 'var(--text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {chat.name}
+              </span>
+              <svg width="13" height="13" viewBox="0 0 10 10" fill="none" stroke="var(--text-faint)" strokeWidth="1.5"
+                style={{ flexShrink: 0, transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                <path d="M2 3.5l3 3 3-3" />
+              </svg>
+            </button>
+          )}
+
+          {menuOpen && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                borderRadius: '14px',
+                padding: '6px',
+                zIndex: 50,
+                minWidth: '200px',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
               }}
             >
-              <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M1 5h8M5 1l4 4-4 4" />
-              </svg>
-              {ancestor.name}
-            </button>
-            {i < ancestors.length - 1 && (
-              <span style={{ color: 'var(--border-emphasis)', fontSize: '11px' }}>›</span>
-            )}
-          </span>
-        ))}
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: '10.5px',
-          color: 'var(--text-faint)',
-          padding: '2px 8px',
-          borderRadius: '20px',
-          border: '1px solid var(--border-subtle)',
-        }}>
-          ~{estimatedTokens.toLocaleString()} tokens
-        </span>
+              <button
+                onClick={() => { toggleStarChat(chatId); setMenuOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', textAlign: 'left',
+                  padding: '9px 14px', borderRadius: '8px',
+                  border: 'none', background: 'transparent',
+                  fontSize: '14px', color: 'var(--text-secondary)', cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 14 14"
+                  fill={chat.starred ? 'var(--accent)' : 'none'}
+                  stroke={chat.starred ? 'var(--accent)' : 'currentColor'}
+                  strokeWidth="1.3">
+                  <path d="M7 1l1.8 3.6 4 .6-2.9 2.8.7 4L7 10l-3.6 1.9.7-4L1.2 5.2l4-.6z" />
+                </svg>
+                {chat.starred ? 'Unstar' : 'Star'}
+              </button>
+
+              <button
+                onClick={() => { setNameValue(chat.name); setEditingName(true); setMenuOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  width: '100%', textAlign: 'left',
+                  padding: '9px 14px', borderRadius: '8px',
+                  border: 'none', background: 'transparent',
+                  fontSize: '14px', color: 'var(--text-secondary)', cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
+                  <path d="M2 10h2l6-6-2-2-6 6v2zM8.5 2.5l2 2" />
+                </svg>
+                Rename
+              </button>
+
+              <div style={{ height: '1px', background: 'var(--border-subtle)', margin: '5px 0' }} />
+
+              {confirmingDelete ? (
+                <div style={{ padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Delete this chat?</span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={handleDelete}
+                      style={{
+                        flex: 1, padding: '6px 0', borderRadius: '7px',
+                        border: 'none', background: 'var(--danger)', color: '#fff',
+                        fontSize: '13px', cursor: 'pointer',
+                      }}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(false)}
+                      style={{
+                        flex: 1, padding: '6px 0', borderRadius: '7px',
+                        border: '1px solid var(--border-default)', background: 'transparent',
+                        color: 'var(--text-faint)', fontSize: '13px', cursor: 'pointer',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    width: '100%', textAlign: 'left',
+                    padding: '9px 14px', borderRadius: '8px',
+                    border: 'none', background: 'transparent',
+                    fontSize: '14px', color: 'var(--danger)', cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">
+                    <path d="M2 3.5h9M5 3.5V2.5h3v1M4.5 3.5l.5 7h3l.5-7" />
+                  </svg>
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right: breadcrumb path */}
+        {ancestors.length > 0 && (
+          <div style={{
+            marginLeft: 'auto',
+            display: 'flex', alignItems: 'center', gap: '5px',
+            flexShrink: 0,
+          }}>
+            {ancestors.map((ancestor, i) => (
+              <span key={ancestor.id} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <button
+                  onClick={() => selectBranch(ancestor.id)}
+                  style={{
+                    background: 'none', border: 'none', padding: 0,
+                    fontSize: '12.5px', color: 'var(--text-faint)',
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-muted)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-faint)' }}
+                >
+                  {ancestor.name}
+                </button>
+                {i < ancestors.length - 1 && (
+                  <span style={{ color: 'var(--text-faint)', fontSize: '12px' }}>›</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 12px' }}>
@@ -312,10 +381,10 @@ export default function ChatView({ chatId }: ChatViewProps) {
             alignItems: 'center', justifyContent: 'center',
             height: '100%', gap: '8px',
           }}>
-            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+            <p style={{ fontSize: '28px', color: 'var(--text-primary)', fontFamily: 'var(--font-serif)', fontStyle: 'italic', letterSpacing: '-0.01em' }}>
               Start the conversation
             </p>
-            <p style={{ fontSize: '12px', color: 'var(--text-faint)' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-faint)' }}>
               {ancestors.length > 0
                 ? `Context from ${ancestors.map((a) => a.name).join(' › ')} is loaded`
                 : 'No context — add context to the parent branch'}
@@ -343,13 +412,12 @@ export default function ChatView({ chatId }: ChatViewProps) {
         )}
       </div>
 
-      <div style={{ flexShrink: 0, padding: '10px 16px 14px' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+      <div style={{ flexShrink: 0, padding: '14px 24px 20px' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
           <div style={{
             border: '1px solid var(--border-default)',
-            borderRadius: '12px',
+            borderRadius: '16px',
             background: 'var(--bg-secondary)',
-            overflow: 'hidden',
           }}>
             <textarea
               ref={textareaRef}
@@ -368,71 +436,123 @@ export default function ChatView({ chatId }: ChatViewProps) {
                 background: 'transparent',
                 border: 'none',
                 outline: 'none',
-                padding: '12px 14px 6px',
-                fontSize: '13px',
+                padding: '16px 18px 8px',
+                fontSize: '15px',
                 color: 'var(--text-primary)',
                 fontFamily: 'var(--font-sans)',
-                lineHeight: '1.5',
+                lineHeight: '1.6',
+                borderRadius: '16px 16px 0 0',
               }}
               rows={1}
               disabled={loading}
             />
             <div style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '6px 10px 8px',
+              padding: '8px 14px 12px',
             }}>
               {(['concise', 'detailed', 'step-by-step'] as ResponseMode[]).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => updateChat(chatId, { responseMode: mode })}
                   style={{
-                    fontSize: '10.5px',
-                    padding: '3px 10px',
+                    fontSize: '12px',
+                    padding: '4px 12px',
                     borderRadius: '20px',
-                    border: '1px solid',
-                    borderColor: chat.responseMode === mode
-                      ? 'var(--accent-border)'
-                      : 'var(--border-default)',
+                    border: 'none',
                     background: chat.responseMode === mode
-                      ? 'var(--accent-subtle)'
+                      ? 'var(--bg-elevated)'
                       : 'transparent',
                     color: chat.responseMode === mode
-                      ? 'var(--accent)'
+                      ? 'var(--text-primary)'
                       : 'var(--text-faint)',
+                    fontWeight: chat.responseMode === mode ? 500 : 400,
                     cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (chat.responseMode !== mode) e.currentTarget.style.color = 'var(--text-muted)'
+                  }}
+                  onMouseLeave={(e) => {
+                    if (chat.responseMode !== mode) e.currentTarget.style.color = 'var(--text-faint)'
                   }}
                 >
                   {mode}
                 </button>
               ))}
 
-              <select
-                value={chat.model}
-                onChange={(e) => updateChat(chatId, { model: e.target.value })}
-                style={{
-                  marginLeft: 'auto',
-                  fontSize: '10.5px',
-                  padding: '3px 8px',
-                  borderRadius: '20px',
-                  border: '1px solid var(--border-default)',
-                  background: 'transparent',
-                  color: 'var(--text-faint)',
-                  outline: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                {allModels.map((m) => (
-                  <option key={m.id} value={m.id} style={{ background: '#1A1A24' }}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+              <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                <button
+                  onClick={() => setModelOpen((o) => !o)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    fontSize: '12px',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid var(--border-default)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {allModels.find((m) => m.id === chat.model)?.label ?? chat.model}
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"
+                    style={{ transform: modelOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>
+                    <path d="M2 3.5l3 3 3-3" />
+                  </svg>
+                </button>
+
+                {modelOpen && (
+                  <div
+                    onMouseLeave={() => setModelOpen(false)}
+                    style={{
+                      position: 'absolute',
+                      bottom: 'calc(100% + 6px)',
+                      right: 0,
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: '12px',
+                      padding: '5px',
+                      zIndex: 50,
+                      minWidth: '170px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                    }}
+                  >
+                    {allModels.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => { updateChat(chatId, { model: m.id }); setModelOpen(false) }}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '7px 12px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: m.id === chat.model ? 'var(--accent-subtle)' : 'transparent',
+                          color: m.id === chat.model ? 'var(--accent)' : 'var(--text-secondary)',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (m.id !== chat.model) e.currentTarget.style.background = 'var(--bg-hover)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (m.id !== chat.model) e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
                 style={{
-                  width: '28px', height: '28px',
+                  width: '34px', height: '34px',
                   borderRadius: '50%',
                   border: 'none',
                   background: loading || !input.trim()
@@ -443,7 +563,7 @@ export default function ChatView({ chatId }: ChatViewProps) {
                   flexShrink: 0,
                 }}
               >
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8">
+                <svg width="13" height="13" viewBox="0 0 11 11" fill="none" stroke="white" strokeWidth="1.8">
                   <path d="M1 9.5L9.5 5.5 1 1.5v3l7 1-7 1v3z" />
                 </svg>
               </button>
@@ -453,7 +573,7 @@ export default function ChatView({ chatId }: ChatViewProps) {
             textAlign: 'center',
             fontSize: '11px',
             color: 'var(--text-faint)',
-            marginTop: '6px',
+            marginTop: '8px',
           }}>
             Enter to send · Shift+Enter for new line
           </p>

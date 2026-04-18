@@ -14,7 +14,7 @@ export default function AuthError() {
       <p style={{ color: 'var(--text-secondary)' }}>
         Something went wrong. Please try again.
       </p>
-      <a href="/auth/login" style={{ color: 'var(--text-info)' }}>
+      <a href="/auth/login" style={{ color: 'var(--accent)' }}>
         Back to login
       </a>
     </div>

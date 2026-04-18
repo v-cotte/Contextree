@@ -55,7 +55,7 @@ export default function LoginPage() {
 
       <div style={{
         width: '100%', maxWidth: '380px',
-        background: 'chatvar(--bg-primary)',
+        background: 'var(--bg-primary)',
         border: '1px solid var(--border-subtle)',
         borderRadius: '16px',
         padding: '32px',

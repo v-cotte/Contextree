@@ -36,7 +36,7 @@ export default function AppShell({ user }: AppShellProps) {
       style={{ background: 'var(--bg-secondary)' }}>
       <Sidebar user={user} />
       <main className="flex-1 overflow-hidden flex flex-col"
-        style={{ background: 'chatvar(--bg-primary)' }}>
+        style={{ background: 'var(--bg-primary)' }}>
         {selectedChatId ? (
           <ChatView chatId={selectedChatId} />
         ) : selectedBranchId ? (
